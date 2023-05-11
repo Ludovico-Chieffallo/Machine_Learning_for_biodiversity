@@ -5,6 +5,8 @@ library(sf)
 library(tidyr)
 library(terra)
 library(dplyr)
+library(caret)
+library(pROC)
 
 #Setwd----
 setwd("D:/Desktop/Prova phd ey1")
@@ -99,3 +101,95 @@ plot(classificazione_RF)
 output_fil.ename <- "classificazione_RF.tif"
 writeRaster(classificazione_RF, output_filename, overwrite = TRUE)
 
+########################################################
+
+
+
+# Definizione della griglia di parametri per la cross-validation
+param_grid <- expand.grid(mtry = 1)
+
+# Configurazione del controllo della cross-validation
+control <- trainControl(method = "cv", number = 5)
+
+# Addestramento del modello con cross-validation
+model_cv <- train(label ~ ., data = training_data_subset, method = "rf", trControl = control, tuneGrid = param_grid)
+
+# Stampa dei risultati della cross-validation
+print(model_cv)
+
+# Utilizzo del modello ottimizzato per la valutazione
+predizioni_cv <- predict(model_cv, test_data_subset)
+
+print(length(test_data_subset$label))
+print(length(predizioni_cv))
+test_data_subset <- na.omit(test_data_subset)
+
+
+matrice_confusione_cv <- table(test_data_subset$label, predizioni_cv)
+accuracy_cv <- sum(diag(matrice_confusione_cv)) / sum(matrice_confusione_cv)
+print(accuracy_cv)
+
+###################################
+
+# Calcola le probabilità di previsione
+prob_pred <- predict(model_cv, newdata = test_data_subset, type = "prob")
+
+# Calcola la previsione delle classi
+class_pred <- predict(model_cv, newdata = test_data_subset)
+
+# Calcola la confusione Matrix
+cm <- confusionMatrix(class_pred, test_data_subset$label)
+
+# Ottieni precisione, recall e F1-score
+precision <- posPredValue(class_pred, test_data_subset$label)
+recall <- sensitivity(class_pred, test_data_subset$label)
+F1 <- (2 * precision * recall) / (precision + recall)
+
+# Calcola l'AUC-ROC
+roc_obj <- roc(test_data_subset$label, prob_pred[,2]) # assumendo che la seconda colonna corrisponda alla classe "positiva"
+auc <- auc(roc_obj)
+
+print(paste("Precision:", precision))
+print(paste("Recall:", recall))
+print(paste("F1-score:", F1))
+print(paste("AUC-ROC:", auc))
+
+##########################
+
+install.packages("h2o")
+install.packages("bit64")
+library(bit64)
+library(h2o)
+# Inizializza un'istanza di H2O
+h2o.init(nthreads = -1) # Usa tutti i core disponibili
+
+# Converti il tuo training_data_subset e test_data_subset in H2OFrame
+training_hf <- as.h2o(training_data_subset)
+testing_hf <- as.h2o(test_data_subset)
+
+# Identifica i predittori e la risposta
+predictors <- setdiff(names(training_data_subset), "label")
+response <- "label"
+
+# Esegui AutoML per 20 modelli (o il massimo possibile in 30 minuti)
+aml <- h2o.automl(x = predictors,
+                  y = response,
+                  training_frame = training_hf,
+                  leaderboard_frame = testing_hf,
+                  max_models = 20,
+                  max_runtime_secs = 1800,
+                  seed = 1)
+
+# Visualizza il leaderboard
+lb <- aml@leaderboard
+print(lb)
+
+# Previsioni sul set di test
+pred <- h2o.predict(aml@leader, newdata = testing_hf)
+
+# Calcola l'accuratezza
+accuracy_automl <- sum(pred$predict == testing_hf$label) / nrow(testing_hf)
+print(paste("Accuracy AutoML:", accuracy_automl))
+
+# Fermare l'istanza H2O
+h2o.shutdown(prompt = FALSE)
