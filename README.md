@@ -62,4 +62,3 @@ library(e1071)
 ## Results
 The results demonstrate the feasibility of using **UAV RGB imagery and machine learning** to predict flower abundance, which is highly correlated with **bee abundance and diversity**. The **best-performing model was GBM**, achieving the highest accuracy and AUC-ROC scores.
 
-## Repository Structure
