@@ -244,9 +244,21 @@ print(confusion_matrix_gbm)
 accuracy_gbm <- confusion_matrix_gbm$overall['Accuracy']
 recall_gbm <- confusion_matrix_gbm$byClass["Sensitivity"]
 f1_gbm <- confusion_matrix_gbm$byClass["F1"]
-auc_roc_gbm <- roc(test_data$label, as.numeric(predictions_gbm))
-auc_gbm <- auc(auc_roc_gbm)
 precision_gbm <- confusion_matrix_gbm$byClass["Pos Pred Value"]
+
+#risposta domanda 7 da inserire prima delle visualizzazioni
+
+test_data$label <- factor(test_data$label, levels = c("grass", "flower"))
+
+# Assicurati di avere il pacchetto pROC caricato, oppure usa il namespace pROC::
+auc_roc_gbm <- pROC::roc(test_data$label, prob_flower, levels = c("grass", "flower"))
+auc_gbm <- pROC::auc(auc_roc_gbm)
+print(auc_gbm)
+
+ci_auc_boot <- pROC::ci.auc(auc_roc_gbm, conf.level = 0.95, boot.n = 2000)
+print(ci_auc_boot)
+
+#95% CI: 0.9694-0.9751 (DeLong)
 
 print(paste("GBM Accuracy: ", accuracy_gbm))
 print(paste("GBM Recall: ", recall_gbm))
@@ -254,7 +266,6 @@ print(paste("GBM F1-Score: ", f1_gbm))
 print(paste("GBM AUC-ROC: ", auc_gbm))
 print(paste("GBM Precision: ", precision_gbm))
 
-#WARNING FROM HERE------------------------
 
 #PLOTS----
 matrix <- as.data.frame(confusion_matrix_gbm$table)
@@ -555,8 +566,3 @@ ggplot(merged_data, aes(x = bee_shannon, y = flower_cm2, label = area)) +
   annotate("text", x = Inf, y = Inf, label = annotation_text_shannon, hjust = 1.8, vjust = 1, size = 5, colour = "steelblue")
 
 #saveRDS(GBM, file = "/media/r_projects/phd_ludovico/2021/GBM_model_22.rds")
-
-
-
-
-
