@@ -221,8 +221,8 @@ test_data <- testing(data_split)
 training_data$label <- as.factor(training_data$label)
 test_data$label <- as.factor(test_data$label)
 
-training_data <- training_data %>% na.omit()
-test_data <- test_data %>% na.omit()
+training_data <- training_data %>% drop_na(band_1, band_2, band_3)
+test_data <- test_data %>% drop_na(band_1, band_2, band_3)
 
 
 
@@ -260,8 +260,15 @@ NNET <- train(label ~ .,
 
 
 # NNET Model Test ----
+
 predictions_NNET <- predict(NNET, newdata = test_data)
+
+pred_char <- as.character(predictions_NNET)
+predictions_NNET <- factor(pred_char, levels = c("grass", "flower"))
+
 test_accuracy_NNET <- mean(predictions_NNET == test_data$label)
+test_accuracy_NNET
+
 print(paste("NNET Test Accuracy:", test_accuracy_NNET))
 
 confusion_matrix_NNET <- confusionMatrix(as.factor(predictions_NNET), test_data$label, positive = "flower")
@@ -270,20 +277,37 @@ print(confusion_matrix_NNET)
 # Additional evaluation metrics can be calculated as before
 
 
-# SVM Model Test ----
-predictions_NNET <- predict(NNET, newdata = test_data)
-test_accuracy_NNET <- mean(predictions_NNET == test_data$label)
-print(paste("NNET Test Accuracy:", test_accuracy_NNET))
-
-confusion_matrix_NNET <- confusionMatrix(as.factor(predictions_NNET), test_data$label, positive = "flower")
-print(confusion_matrix_NNET)
-
 accuracy_NNET <- confusion_matrix_NNET$overall['Accuracy']
 recall_NNET <- confusion_matrix_NNET$byClass["Sensitivity"]
 f1_NNET <- confusion_matrix_NNET$byClass["F1"]
-auc_roc_NNET <- roc(test_data$label, as.numeric(predictions_NNET))
-auc_NNET <- auc(auc_roc_NNET)
 precision_NNET <- confusion_matrix_NNET$byClass["Pos Pred Value"]
+
+
+
+test_data$label <- factor(test_data$label, levels = c("grass", "flower"))
+predictions_NNET_prob <- predict(NNET, newdata = test_data, type = "prob")
+
+# Assumendo che "flower" sia la classe positiva, estrai la probabilità corrispondente
+prob_flower <- predictions_NNET_prob$flower
+
+# Calcola la ROC specificando i livelli (assicurati che "grass" sia il livello negativo e "flower" quello positivo)
+auc_roc_NNET <- pROC::roc(response = test_data$label, predictor = prob_flower, levels = c("grass", "flower"))
+auc_NNET <- auc(auc_roc_NNET)
+
+print(auc_NNET)
+
+
+
+ci_auc_boot <- pROC::ci.auc(auc_roc_NNET, conf.level = 0.95, boot.n = 2000)
+print(ci_auc_boot)
+
+
+
+
+
+
+
+
 
 print(paste("_NNET Accuracy: ", accuracy_NNET))
 print(paste("_NNET Recall: ", recall_NNET))
